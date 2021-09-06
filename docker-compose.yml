@@ -4,6 +4,7 @@ services:
   mysql:
     build:
       context: ./mysql5.7
+    platform: linux/x86_64  
     volumes:
       - ./mysql5.7/mysql:/var/lib/mysql
       - ./mysql5.7/mysqlvolume:/mysqlvolume
