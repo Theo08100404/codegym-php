@@ -30,6 +30,9 @@ if (!empty($_POST)) {
     }
 }
 
+
+
+
 // 投稿を取得する
 $page = $_REQUEST['page'];
 if ($page == '') {
@@ -46,13 +49,13 @@ $page = min($page, $maxPage);
 $start = ($page - 1) * 5;
 $start = max(0, $start);
 
-$posts = $db->prepare('SELECT m.name, m.picture, p.* FROM members m, posts p WHERE m.id=p.member_id ORDER BY p.created DESC LIMIT ?, 5');
+$posts = $db->prepare('SELECT m.name, m.picture, p.* , COUNT(f.post_id) AS like_number FROM members m, posts p LEFT JOIN favorites f ON p.id=f.post_id WHERE m.id=p.member_id GROUP BY f.post_id ORDER BY p.created DESC LIMIT ?, 5');
 $posts->bindParam(1, $start, PDO::PARAM_INT);
 $posts->execute();
 
 // 返信の場合
 if (isset($_REQUEST['res'])) {
-    $response = $db->prepare('SELECT m.name, m.picture, p.* FROM members m, posts p WHERE m.id=p.member_id AND p.id=? ORDER BY p.created DESC');
+    $response = $db->prepare('SELECT m.name, m.picture, p.*FROM members m, posts p WHERE m.id=p.member_id AND p.id=? ORDER BY p.created DESC');
     $response->execute(array($_REQUEST['res']));
 
     $table = $response->fetch();
@@ -65,12 +68,53 @@ function h($value)
     return htmlspecialchars($value, ENT_QUOTES, 'UTF-8');
 }
 
+
 // 本文内のURLにリンクを設定します
 function makeLink($value)
 {
     return mb_ereg_replace("(https?)(://[[:alnum:]\+\$\;\?\.%,!#~*/:@&=_-]+)", '<a href="\1\2">\1\2</a>', $value);
 }
 ?>
+<?php
+//いいね
+if (isset($_REQUEST['like'])) {
+    $pressd = $db->prepare('SELECT COUNT(*) AS cnt FROM favorites WHERE post_id=? AND member_id=?');
+    $pressd->execute(array(
+        $_REQUEST['like'],
+        $_SESSION['id']
+    ));
+    $like_cnt = $pressd->fetch();
+    if ($like_cnt['cnt'] < 1) {
+        $press = $db->prepare('INSERT INTO favorites SET post_id=? , member_id=? , created=NOW()');
+        $press->execute(array(
+            $_REQUEST['like'],
+            $_SESSION['id']
+        ));
+
+
+        header('Location: index.php');
+        exit();
+    } else {
+        $change = $db->prepare('DELETE FROM favorites WHERE post_id=? AND member_id=?');
+        $change->execute(array(
+            $_REQUEST['like'],
+            $_SESSION['id']
+        ));
+
+        header('Location: index.php');
+        exit();
+    }
+}
+//いいねの画像を変化させたい
+
+//いいねしてるか調べてる
+$like = $db->prepare('SELECT post_id FROM favorites WHERE member_id=?');
+$like->execute(array($_SESSION['id']));
+while ($like_record = $like->fetch()) {
+    $my_like[] = $like_record;
+}
+?>
+
 <!DOCTYPE html>
 <html lang="ja">
 
@@ -107,19 +151,45 @@ function makeLink($value)
 
             <?php
             foreach ($posts as $post) :
-            ?>
+
+                //各投稿にいいねあるか調べてる
+                $like_cnt = 0;
+                if (!empty($my_like)) {
+                    foreach ($my_like as $like_post)
+                        foreach ($like_post as $like_post_id) {
+                            if ($like_post_id == $post['id']) {
+                                $like_cnt = 1;
+                            }
+                        }
+                } ?>
+
                 <div class="msg">
                     <img src="member_picture/<?php echo h($post['picture']); ?>" width="48" height="48" alt="<?php echo h($post['name']); ?>" />
                     <p><?php echo makeLink(h($post['message'])); ?><span class="name">（<?php echo h($post['name']); ?>）</span>[<a href="index.php?res=<?php echo h($post['id']); ?>">Re</a>]</p>
 
                     <p class="day">
                         <!-- 課題：リツイートといいね機能の実装 -->
+
                         <span class="retweet">
-                            <img class="retweet-image" src="images/retweet-solid-gray.svg"><span style="color:gray;">12</span>
+                            <img src="images/retweet-solid-gray.svg"><span style="color:gray;">12</span>
                         </span>
                         <span class="favorite">
-                            <img class="favorite-image" src="images/heart-solid-gray.svg"><span style="color:gray;">34</span>
-                        </span>
+                            <?php if ($like_cnt < 1) : ?>
+                                <a href="index.php?like=<?php echo h($post['id']); ?>">灰色ハート
+                                <?php else : ?>
+                                    <a href="index.php?like=<?php echo h($post['id']); ?>">赤色ハート
+                                    <?php endif; ?>
+                                    　　　　　
+                                    <!--いいねの数表示-->
+                                    <!--DBから該当のコメントに対してのmember_id数をもらってくる-->
+
+                                    </a>
+                                    <span><?php echo h($post['like_number']); ?></span></span>
+
+
+
+
+
 
                         <a href="view.php?id=<?php echo h($post['id']); ?>"><?php echo h($post['created']); ?></a>
                         <?php
@@ -167,6 +237,7 @@ function makeLink($value)
                 ?>
             </ul>
         </div>
+
     </div>
 </body>
 
