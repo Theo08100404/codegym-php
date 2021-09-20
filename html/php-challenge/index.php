@@ -179,7 +179,6 @@ if (isset($_REQUEST['like'])) {
                         </span>
 
                         <span class="favorite">
-                            //いいねの画像動作分岐
                             <?php if ($like_cnt['cnt'] < 1) : ?>
                                 <a href="index.php?like=<?php echo h($post['id']); ?>">
                                     <img class="favorite-image" src="images/heart-solid-gray.svg">
