@@ -49,7 +49,7 @@ $page = min($page, $maxPage);
 $start = ($page - 1) * 5;
 $start = max(0, $start);
 
-$posts = $db->prepare('SELECT m.name, m.picture, p.* , COUNT(f.post_id) AS like_number FROM members m, posts p LEFT JOIN favorites f ON p.id=f.post_id WHERE m.id=p.member_id GROUP BY f.post_id ORDER BY p.created DESC LIMIT ?, 5');
+$posts = $db->prepare('SELECT m.name, m.picture, p.* FROM members m, posts p WHERE m.id=p.member_id ORDER BY p.created DESC LIMIT ?, 5');
 $posts->bindParam(1, $start, PDO::PARAM_INT);
 $posts->execute();
 
@@ -74,9 +74,10 @@ function makeLink($value)
 {
     return mb_ereg_replace("(https?)(://[[:alnum:]\+\$\;\?\.%,!#~*/:@&=_-]+)", '<a href="\1\2">\1\2</a>', $value);
 }
+
 ?>
 <?php
-//いいね
+//いいね済みかどうか確認
 if (isset($_REQUEST['like'])) {
     $pressd = $db->prepare('SELECT COUNT(*) AS cnt FROM favorites WHERE post_id=? AND member_id=?');
     $pressd->execute(array(
@@ -84,6 +85,7 @@ if (isset($_REQUEST['like'])) {
         $_SESSION['id']
     ));
     $like_cnt = $pressd->fetch();
+    //いいねがなければDBに追加
     if ($like_cnt['cnt'] < 1) {
         $press = $db->prepare('INSERT INTO favorites SET post_id=? , member_id=? , created=NOW()');
         $press->execute(array(
@@ -94,7 +96,9 @@ if (isset($_REQUEST['like'])) {
 
         header('Location: index.php');
         exit();
-    } else {
+    }
+    //いいねがあればDBから削除
+    else {
         $change = $db->prepare('DELETE FROM favorites WHERE post_id=? AND member_id=?');
         $change->execute(array(
             $_REQUEST['like'],
@@ -105,15 +109,10 @@ if (isset($_REQUEST['like'])) {
         exit();
     }
 }
-//いいねの画像を変化させたい
 
-//いいねしてるか調べてる
-$like = $db->prepare('SELECT post_id FROM favorites WHERE member_id=?');
-$like->execute(array($_SESSION['id']));
-while ($like_record = $like->fetch()) {
-    $my_like[] = $like_record;
-}
+
 ?>
+
 
 <!DOCTYPE html>
 <html lang="ja">
@@ -151,17 +150,22 @@ while ($like_record = $like->fetch()) {
 
             <?php
             foreach ($posts as $post) :
+                //いいねの数取得
+                $like_number = $db->prepare('SELECT COUNT(*) as cnt from favorites WHERE post_id=? ');
+                $like_number->execute(array(
+                    $post['id']
+                ));
+                $total_like = $like_number->fetch();
 
-                //各投稿にいいねあるか調べてる
-                $like_cnt = 0;
-                if (!empty($my_like)) {
-                    foreach ($my_like as $like_post)
-                        foreach ($like_post as $like_post_id) {
-                            if ($like_post_id == $post['id']) {
-                                $like_cnt = 1;
-                            }
-                        }
-                } ?>
+                //それぞれの投稿に対していいねしてるかしてないか確認
+                $pressd = $db->prepare('SELECT COUNT(*) AS cnt FROM favorites WHERE post_id=? AND member_id=?');
+                $pressd->execute(array(
+                    $post['id'],
+                    $_SESSION['id']
+                ));
+                $like_cnt = $pressd->fetch();
+            ?>
+
 
                 <div class="msg">
                     <img src="member_picture/<?php echo h($post['picture']); ?>" width="48" height="48" alt="<?php echo h($post['name']); ?>" />
@@ -171,25 +175,20 @@ while ($like_record = $like->fetch()) {
                         <!-- 課題：リツイートといいね機能の実装 -->
 
                         <span class="retweet">
-                            <img src="images/retweet-solid-gray.svg"><span style="color:gray;">12</span>
+                            <img src="images/retweet-solid-gray.svg"><span style="color:gray;"></span>
                         </span>
+
                         <span class="favorite">
-                            <?php if ($like_cnt < 1) : ?>
-                                <a href="index.php?like=<?php echo h($post['id']); ?>">灰色ハート
+                            //いいねの画像動作分岐
+                            <?php if ($like_cnt['cnt'] < 1) : ?>
+                                <a href="index.php?like=<?php echo h($post['id']); ?>">
+                                    <img class="favorite-image" src="images/heart-solid-gray.svg">
                                 <?php else : ?>
-                                    <a href="index.php?like=<?php echo h($post['id']); ?>">赤色ハート
-                                    <?php endif; ?>
-                                    　　　　　
-                                    <!--いいねの数表示-->
-                                    <!--DBから該当のコメントに対してのmember_id数をもらってくる-->
-
+                                    <a href="index.php?like=<?php echo h($post['id']); ?>">
+                                        <img class="favorite-image" src="images/heart-solid-red.svg">
+                                        <?php endif; ?>　　　　
                                     </a>
-                                    <span><?php echo h($post['like_number']); ?></span></span>
-
-
-
-
-
+                                    <span><?php echo ($total_like['cnt']); ?></span></span>
 
                         <a href="view.php?id=<?php echo h($post['id']); ?>"><?php echo h($post['created']); ?></a>
                         <?php
