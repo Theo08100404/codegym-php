@@ -29,10 +29,6 @@ if (!empty($_POST)) {
         exit();
     }
 }
-
-
-
-
 // 投稿を取得する
 $page = $_REQUEST['page'];
 if ($page == '') {
@@ -55,7 +51,7 @@ $posts->execute();
 
 // 返信の場合
 if (isset($_REQUEST['res'])) {
-    $response = $db->prepare('SELECT m.name, m.picture, p.*FROM members m, posts p WHERE m.id=p.member_id AND p.id=? ORDER BY p.created DESC');
+    $response = $db->prepare('SELECT m.name, m.picture, p.* FROM members m, posts p WHERE m.id=p.member_id AND p.id=? ORDER BY p.created DESC');
     $response->execute(array($_REQUEST['res']));
 
     $table = $response->fetch();
@@ -92,8 +88,6 @@ if (isset($_REQUEST['like'])) {
             $_REQUEST['like'],
             $_SESSION['id']
         ));
-
-
         header('Location: index.php');
         exit();
     }
@@ -104,16 +98,11 @@ if (isset($_REQUEST['like'])) {
             $_REQUEST['like'],
             $_SESSION['id']
         ));
-
         header('Location: index.php');
         exit();
     }
 }
-
-
 ?>
-
-
 <!DOCTYPE html>
 <html lang="ja">
 
@@ -165,8 +154,6 @@ if (isset($_REQUEST['like'])) {
                 ));
                 $like_cnt = $pressd->fetch();
             ?>
-
-
                 <div class="msg">
                     <img src="member_picture/<?php echo h($post['picture']); ?>" width="48" height="48" alt="<?php echo h($post['name']); ?>" />
                     <p><?php echo makeLink(h($post['message'])); ?><span class="name">（<?php echo h($post['name']); ?>）</span>[<a href="index.php?res=<?php echo h($post['id']); ?>">Re</a>]</p>
@@ -175,21 +162,20 @@ if (isset($_REQUEST['like'])) {
                         <!-- 課題：リツイートといいね機能の実装 -->
 
                         <span class="retweet">
-                            <img src="images/retweet-solid-gray.svg"><span style="color:gray;"></span>
+                            <img class="retweet-image" src="images/retweet-solid-gray.svg">
                         </span>
 
                         <span class="favorite">
-                            //いいねの画像動作分岐
                             <?php if ($like_cnt['cnt'] < 1) : ?>
                                 <a href="index.php?like=<?php echo h($post['id']); ?>">
-                                    <img class="favorite-image" src="images/heart-solid-gray.svg">
-                                <?php else : ?>
-                                    <a href="index.php?like=<?php echo h($post['id']); ?>">
-                                        <img class="favorite-image" src="images/heart-solid-red.svg">
-                                        <?php endif; ?>　　　　
-                                    </a>
-                                    <span><?php echo ($total_like['cnt']); ?></span></span>
-
+                                    <img class="favorite-image" src="images/heart-solid-gray.svg"></a>
+                            <?php else : ?>
+                                <a href="index.php?like=<?php echo h($post['id']); ?>">
+                                    <img class="favorite-image" src="images/heart-solid-red.svg">
+                                <?php endif; ?>
+                                </a>
+                                <span><?php echo h($total_like['cnt']); ?></span>
+                        </span>
                         <a href="view.php?id=<?php echo h($post['id']); ?>"><?php echo h($post['created']); ?></a>
                         <?php
                         if ($post['reply_post_id'] > 0) :
