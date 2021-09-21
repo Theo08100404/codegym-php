@@ -64,7 +64,6 @@ function h($value)
     return htmlspecialchars($value, ENT_QUOTES, 'UTF-8');
 }
 
-
 // 本文内のURLにリンクを設定します
 function makeLink($value)
 {
