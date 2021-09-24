@@ -29,7 +29,6 @@ if (!empty($_POST)) {
         exit();
     }
 }
-
 // 投稿を取得する
 $page = $_REQUEST['page'];
 if ($page == '') {
@@ -70,6 +69,38 @@ function makeLink($value)
 {
     return mb_ereg_replace("(https?)(://[[:alnum:]\+\$\;\?\.%,!#~*/:@&=_-]+)", '<a href="\1\2">\1\2</a>', $value);
 }
+
+?>
+<?php
+//いいね済みかどうか確認
+if (isset($_REQUEST['like'])) {
+    $pressd = $db->prepare('SELECT COUNT(*) AS cnt FROM favorites WHERE post_id=? AND member_id=?');
+    $pressd->execute(array(
+        $_REQUEST['like'],
+        $_SESSION['id']
+    ));
+    $like_cnt = $pressd->fetch();
+    //いいねがなければDBに追加
+    if ($like_cnt['cnt'] < 1) {
+        $press = $db->prepare('INSERT INTO favorites SET post_id=? , member_id=? , created=NOW()');
+        $press->execute(array(
+            $_REQUEST['like'],
+            $_SESSION['id']
+        ));
+        header('Location: index.php');
+        exit();
+    }
+    //いいねがあればDBから削除
+    else {
+        $change = $db->prepare('DELETE FROM favorites WHERE post_id=? AND member_id=?');
+        $change->execute(array(
+            $_REQUEST['like'],
+            $_SESSION['id']
+        ));
+        header('Location: index.php');
+        exit();
+    }
+}
 ?>
 <!DOCTYPE html>
 <html lang="ja">
@@ -107,6 +138,20 @@ function makeLink($value)
 
             <?php
             foreach ($posts as $post) :
+                //いいねの数取得
+                $like_number = $db->prepare('SELECT COUNT(*) as cnt from favorites WHERE post_id=? ');
+                $like_number->execute(array(
+                    $post['id']
+                ));
+                $total_like = $like_number->fetch();
+
+                //それぞれの投稿に対していいねしてるかしてないか確認
+                $pressd = $db->prepare('SELECT COUNT(*) AS cnt FROM favorites WHERE post_id=? AND member_id=?');
+                $pressd->execute(array(
+                    $post['id'],
+                    $_SESSION['id']
+                ));
+                $like_cnt = $pressd->fetch();
             ?>
                 <div class="msg">
                     <img src="member_picture/<?php echo h($post['picture']); ?>" width="48" height="48" alt="<?php echo h($post['name']); ?>" />
@@ -114,13 +159,22 @@ function makeLink($value)
 
                     <p class="day">
                         <!-- 課題：リツイートといいね機能の実装 -->
+
                         <span class="retweet">
-                            <img class="retweet-image" src="images/retweet-solid-gray.svg"><span style="color:gray;">12</span>
-                        </span>
-                        <span class="favorite">
-                            <img class="favorite-image" src="images/heart-solid-gray.svg"><span style="color:gray;">34</span>
+                            <img class="retweet-image" src="images/retweet-solid-gray.svg">
                         </span>
 
+                        <span class="favorite">
+                            <?php if ($like_cnt['cnt'] < 1) : ?>
+                                <a href="index.php?like=<?php echo h($post['id']); ?>">
+                                    <img class="favorite-image" src="images/heart-solid-gray.svg"></a>
+                            <?php else : ?>
+                                <a href="index.php?like=<?php echo h($post['id']); ?>">
+                                    <img class="favorite-image" src="images/heart-solid-red.svg">
+                                <?php endif; ?>
+                                </a>
+                                <span><?php echo h($total_like['cnt']); ?></span>
+                        </span>
                         <a href="view.php?id=<?php echo h($post['id']); ?>"><?php echo h($post['created']); ?></a>
                         <?php
                         if ($post['reply_post_id'] > 0) :
@@ -167,6 +221,7 @@ function makeLink($value)
                 ?>
             </ul>
         </div>
+
     </div>
 </body>
 
