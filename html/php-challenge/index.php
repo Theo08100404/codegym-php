@@ -29,7 +29,6 @@ if (!empty($_POST)) {
         exit();
     }
 }
-
 // 投稿を取得する
 $page = $_REQUEST['page'];
 if ($page == '') {
@@ -59,6 +58,8 @@ if (isset($_REQUEST['res'])) {
     $message = '@' . $table['name'] . ' ' . $table['message'];
 }
 
+
+
 // htmlspecialcharsのショートカット
 function h($value)
 {
@@ -70,7 +71,80 @@ function makeLink($value)
 {
     return mb_ereg_replace("(https?)(://[[:alnum:]\+\$\;\?\.%,!#~*/:@&=_-]+)", '<a href="\1\2">\1\2</a>', $value);
 }
+
 ?>
+<?php
+//いいね済みかどうか確認
+if (isset($_REQUEST['like'])) {
+    $pressd = $db->prepare('SELECT COUNT(*) AS cnt FROM favorites WHERE post_id=? AND member_id=?');
+    $pressd->execute(array(
+        $_REQUEST['like'],
+        $_SESSION['id']
+    ));
+    $like_cnt = $pressd->fetch();
+    //いいねがなければDBに追加
+    if ($like_cnt['cnt'] < 1) {
+        $press = $db->prepare('INSERT INTO favorites SET post_id=? , member_id=? , created=NOW()');
+        $press->execute(array(
+            $_REQUEST['like'],
+            $_SESSION['id'],
+
+        ));
+        header('Location: index.php');
+        exit();
+    }
+    //いいねがあればDBから削除
+    else {
+        $change = $db->prepare('DELETE FROM favorites WHERE post_id=? AND member_id=? ');
+        $change->execute(array(
+            $_REQUEST['like'],
+            $_SESSION['id']
+        ));
+        header('Location: index.php');
+        exit();
+    }
+}
+?>
+<?php
+//リツイートされてるかどうか確認
+if (isset($_REQUEST['retweet'])) {
+    $pushed = $db->prepare('SELECT COUNT(*) AS cnt FROM posts WHERE member_id=? AND retweet_post_id=? ');
+    $pushed->execute(array(
+        $_SESSION['id'],
+        $_REQUEST['retweet']
+    ));
+    $retweet_cnt = $pushed->fetch();
+
+
+    //リツイートされてなければ追加
+    if ($retweet_cnt['cnt'] < 1) {
+        $push = $db->prepare('INSERT INTO posts SET member_id=? , retweet_post_id=? ,created=NOW()');
+        $push->execute(array(
+            $_SESSION['id'],
+            $_REQUEST['retweet']
+
+
+        ));
+        header('Location: index.php');
+        exit();
+    }
+    //リツイートされていれば削除
+    else {
+        $cansel_ret = $db->prepare('DELETE FROM posts WHERE member_id=? AND retweet_post_id=? ');
+        $cansel_ret->execute(array(
+            $_SESSION['id'],
+            $_REQUEST['retweet']
+
+        ));
+        header('Location: index.php');
+        exit();
+    }
+}
+//元ポストの情報を取得
+
+?>
+
+
 <!DOCTYPE html>
 <html lang="ja">
 
@@ -107,36 +181,127 @@ function makeLink($value)
 
             <?php
             foreach ($posts as $post) :
+                //いいねの数取得
+                $like_number = $db->prepare('SELECT COUNT(*) as cnt from favorites WHERE post_id=? ');
+                $like_number->execute(array(
+                    $post['id']
+                ));
+                $total_like = $like_number->fetch();
+
+                //それぞれの投稿に対していいねしてるかしてないか確認
+                $pressd = $db->prepare('SELECT COUNT(*) AS cnt FROM favorites WHERE post_id=? AND member_id=?');
+                $pressd->execute(array(
+                    $post['id'],
+                    $_SESSION['id']
+                ));
+                $like_cnt = $pressd->fetch();
+
+
+                //リツイートの数確認
+                $retweet_number = $db->prepare('SELECT COUNT(*) as cnt from posts WHERE retweet_post_id=? ');
+                $retweet_number->execute(array(
+                    $post['id']
+                ));
+                $total_retweet = $retweet_number->fetch();
+
+                //それぞれの投稿に対してリツイートしてるかしてないか確認
+                $pushed = $db->prepare('SELECT COUNT(*) AS cnt FROM posts WHERE retweet_post_id=? AND member_id=?');
+                $pushed->execute(array(
+                    $post['id'],
+                    $_SESSION['id']
+
+                ));
+                $retweet_cnt = $pushed->fetch();
             ?>
+                <?php
+                //元投稿のメッセージ取得
+                $retweet_message = $db->prepare('SELECT message as msg FROM posts WHERE id=?');
+                $retweet_message->execute(array(
+                    $post['retweet_post_id']
+                ));
+                $retweet_msg = $retweet_message->fetch();
+
+                $a = $db->prepare('SELECT member_id as mem FROM posts WHERE id=?');
+                $a->execute(array(
+                    $post['retweet_post_id']
+                ));
+                $b = $a->fetch();
+
+                $rename = $db->prepare('SELECT name as namae FROM members WHERE id=?');
+                $rename->execute(array(
+                    $b['mem']
+                ));
+                $c = $rename->fetch();
+
+                $f = $db->prepare('SELECT picture as pic FROM members WHERE id=?');
+                $f->execute(array(
+                    $b['mem']
+                ));
+                $k = $f->fetch();
+
+
+                ?>
+
                 <div class="msg">
+                    <span><?php if ((int)($post['retweet_post_id']) > 0) : ?></span>
+                    <span><?php echo h($post['name']) . 'さんがリツイートしました。'; ?></span>
+                    <img src="member_picture/<?php echo h($k['pic']); ?>" width="48" height="48" alt="<?php echo h($c['namae']); ?>" />
+                    <p><?php echo makeLink(h($retweet_msg['msg'])); ?><span class="name">（<?php echo h($c['namae']); ?>）</span>[<a href="index.php?res=<?php echo h($c['id']); ?>">Re</a>]</p>
+                <?php else : ?>
                     <img src="member_picture/<?php echo h($post['picture']); ?>" width="48" height="48" alt="<?php echo h($post['name']); ?>" />
                     <p><?php echo makeLink(h($post['message'])); ?><span class="name">（<?php echo h($post['name']); ?>）</span>[<a href="index.php?res=<?php echo h($post['id']); ?>">Re</a>]</p>
+                <?php endif; ?>
 
-                    <p class="day">
-                        <!-- 課題：リツイートといいね機能の実装 -->
-                        <span class="retweet">
-                            <img class="retweet-image" src="images/retweet-solid-gray.svg"><span style="color:gray;">12</span>
-                        </span>
-                        <span class="favorite">
-                            <img class="favorite-image" src="images/heart-solid-gray.svg"><span style="color:gray;">34</span>
-                        </span>
+                <p class="day">
+                    <!-- 課題：リツイートといいね機能の実装 -->
 
-                        <a href="view.php?id=<?php echo h($post['id']); ?>"><?php echo h($post['created']); ?></a>
-                        <?php
-                        if ($post['reply_post_id'] > 0) :
-                        ?><a href="view.php?id=<?php echo h($post['reply_post_id']); ?>">
-                                返信元のメッセージ</a>
-                        <?php
-                        endif;
-                        ?>
-                        <?php
-                        if ($_SESSION['id'] == $post['member_id']) :
-                        ?>
-                            [<a href="delete.php?id=<?php echo h($post['id']); ?>" style="color: #F33;">削除</a>]
-                        <?php
-                        endif;
-                        ?>
-                    </p>
+                    <span class="retweet">
+                        <?php if ($retweet_cnt['cnt'] < 1) : ?>
+                            <a href="index.php?retweet=<?php echo h($post['id']); ?>">
+                                <img class="retweet-image" src="images/retweet-solid-gray.svg"> </a>
+                        <?php else : ?>
+                            <a href="index.php?retweet=<?php echo h($post['id']); ?>">
+                                <img class="retweet-image" src="images/retweet-solid-blue.svg">
+
+                            <?php endif; ?>
+                            </a>
+                            <span><?php echo h($total_retweet['cnt']); ?></span>
+
+                    </span>
+
+                    <span class="favorite">
+
+                        <?php if ($like_cnt['cnt'] < 1) : ?>
+                            <a href="index.php?like=<?php echo h($post['id']); ?>">
+                                <img class="favorite-image" src="images/heart-solid-gray.svg"></a>
+                        <?php else : ?>
+                            <a href="index.php?like=<?php echo h($post['id']); ?>">
+                                <img class="favorite-image" src="images/heart-solid-red.svg">
+                            <?php endif; ?>
+                            </a>
+                            <span><?php echo h($total_like['cnt']); ?></span>
+                    </span>
+
+
+                    </span>
+
+
+                    <a href="view.php?id=<?php echo h($post['id']); ?>"><?php echo h($post['created']); ?></a>
+                    <?php
+                    if ($post['reply_post_id'] > 0) :
+                    ?><a href="view.php?id=<?php echo h($post['reply_post_id']); ?>">
+                            返信元のメッセージ</a>
+                    <?php
+                    endif;
+                    ?>
+                    <?php
+                    if ($_SESSION['id'] == $post['member_id']) :
+                    ?>
+                        [<a href="delete.php?id=<?php echo h($post['id']); ?>" style="color: #F33;">削除</a>]
+                    <?php
+                    endif;
+                    ?>
+                </p>
                 </div>
             <?php
             endforeach;
@@ -167,6 +332,7 @@ function makeLink($value)
                 ?>
             </ul>
         </div>
+
     </div>
 </body>
 
