@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width , initial-arcle=1 ,shrink-to-fit=no">
+    <link rel="stylesheet" href="css/style.css">
+    <title>よくわかるPHPの教科書</title>
+</head>
+
+<body>
+    <h1>フォームデータの送信</h1>
+    <form action="submit.php" method="get">
+        <input type="text" id="comment" name="comment">
+        <input type="submit" value="送信する">
+
+    </form>
+    <form action="submit.php" method="POST">
+        <p>性別:<input type="radio" name="gender" value="male">男性/
+            <input type="radio" name="gender" value="female">女性
+        </p>
+        <input type="submit" value="送信する">
+    </form>
+    <form action="submit.php" method="POST">
+        <p>ご予約希望日（複数選択可）</p>
+        <p>
+            <input type="checkbox" name="reserve[]" value="1/1">1月 1日<br>
+            <input type="checkbox" name="reserve[]" value="1/2">1月 2日<br>
+            <input type="checkbox" name="reserve[]" value="1/3">1月 3日<br>
+        </p>
+        <input type="submit" value="送信する">
+
+    </form>
+
+
+</body>
+
+</html>
