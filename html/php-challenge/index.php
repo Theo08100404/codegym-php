@@ -58,8 +58,6 @@ if (isset($_REQUEST['res'])) {
     $message = '@' . $table['name'] . ' ' . $table['message'];
 }
 
-
-
 // htmlspecialcharsのショートカット
 function h($value)
 {
@@ -123,7 +121,6 @@ if (isset($_REQUEST['retweet'])) {
             $_SESSION['id'],
             $_REQUEST['retweet']
 
-
         ));
         header('Location: index.php');
         exit();
@@ -143,7 +140,6 @@ if (isset($_REQUEST['retweet'])) {
 //元ポストの情報を取得
 
 ?>
-
 
 <!DOCTYPE html>
 <html lang="ja">
