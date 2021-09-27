@@ -198,7 +198,7 @@ if (isset($_REQUEST['retweet'])) {
 
 
                 //リツイートの数確認
-                $retweet_number = $db->prepare('SELECT COUNT(*) as cnt from posts WHERE retweet_post_id=? ');
+                $retweet_number = $db->prepare('SELECT COUNT(*) as cnt FROM posts WHERE retweet_post_id=? ');
                 $retweet_number->execute(array(
                     $post['id']
                 ));
@@ -212,41 +212,57 @@ if (isset($_REQUEST['retweet'])) {
 
                 ));
                 $retweet_cnt = $pushed->fetch();
+
+                //リツイートと投稿のリツイート数取得
+                $retweeted_number = $db->prepare('SELECT COUNT(*) AS cnt FROM posts WHERE retweet_post_id=? ');
+                $retweeted_number->execute(array(
+                    $post['retweet_post_id']
+                ));
+                $retweeted_cnt = $retweeted_number->fetch();
+
+                //リツイート投稿に対して自分がリツイートしているか確認
+                $MY_pushed = $db->prepare('SELECT COUNT(*) AS cnt FROM posts WHERE retweet_post_id=? AND member_id=?');
+                $MY_pushed->execute(array(
+                    $post['id'],
+                    $_SESSION['id']
+
+                ));
+                $retweeted = $MY_pushed->fetch();
+
             ?>
                 <?php
-                //元投稿のメッセージ取得
+                //リツイート元の情報取得
                 $retweet_message = $db->prepare('SELECT message as msg FROM posts WHERE id=?');
                 $retweet_message->execute(array(
                     $post['retweet_post_id']
                 ));
                 $retweet_msg = $retweet_message->fetch();
 
-                $a = $db->prepare('SELECT member_id as mem FROM posts WHERE id=?');
-                $a->execute(array(
+                $tweeted_id = $db->prepare('SELECT member_id as id FROM posts WHERE id=?');
+                $tweeted_id->execute(array(
                     $post['retweet_post_id']
                 ));
-                $b = $a->fetch();
+                $Tweeted_id = $tweeted_id->fetch();
 
-                $rename = $db->prepare('SELECT name as namae FROM members WHERE id=?');
-                $rename->execute(array(
-                    $b['mem']
+                $tweeted_name = $db->prepare('SELECT name as namae FROM members WHERE id=?');
+                $tweeted_name->execute(array(
+                    $Tweeted_id['id']
                 ));
-                $c = $rename->fetch();
+                $Tweeted_name = $tweeted_name->fetch();
 
-                $f = $db->prepare('SELECT picture as pic FROM members WHERE id=?');
-                $f->execute(array(
-                    $b['mem']
+                $tweeted_pic = $db->prepare('SELECT picture as pic FROM members WHERE id=?');
+                $tweeted_pic->execute(array(
+                    $Tweeted_id['id']
                 ));
-                $k = $f->fetch();
-
+                $Tweeted_pic = $tweeted_pic->fetch();
 
                 ?>
 
                 <div class="msg">
                     <span><?php if ((int)($post['retweet_post_id']) > 0) : ?></span>
                     <span><?php echo h($post['name']) . 'さんがリツイートしました。'; ?></span>
-                    <img src="member_picture/<?php echo h($k['pic']); ?>" width="48" height="48" alt="<?php echo h($c['namae']); ?>" />
-                    <p><?php echo makeLink(h($retweet_msg['msg'])); ?><span class="name">（<?php echo h($c['namae']); ?>）</span>[<a href="index.php?res=<?php echo h($c['id']); ?>">Re</a>]</p>
+                    <img src="member_picture/<?php echo h($Tweeted_pic['pic']); ?>" width="48" height="48" alt="<?php echo h($Tweeted_name['namae']); ?>" />
+                    <p><?php echo makeLink(h($retweet_msg['msg'])); ?><span class="name">（<?php echo h($Tweeted_name['namae']); ?>）</span>[<a href="index.php?res=<?php echo h($Tweeted_id['id']); ?>">Re</a>]</p>
                 <?php else : ?>
                     <img src="member_picture/<?php echo h($post['picture']); ?>" width="48" height="48" alt="<?php echo h($post['name']); ?>" />
                     <p><?php echo makeLink(h($post['message'])); ?><span class="name">（<?php echo h($post['name']); ?>）</span>[<a href="index.php?res=<?php echo h($post['id']); ?>">Re</a>]</p>
@@ -256,16 +272,24 @@ if (isset($_REQUEST['retweet'])) {
                     <!-- 課題：リツイートといいね機能の実装 -->
 
                     <span class="retweet">
-                        <?php if ($retweet_cnt['cnt'] < 1) : ?>
-                            <a href="index.php?retweet=<?php echo h($post['id']); ?>">
-                                <img class="retweet-image" src="images/retweet-solid-gray.svg"> </a>
-                        <?php else : ?>
+                        <?php if ((((int)($post['retweet_post_id']) > 0)) && $retweeted_cnt['cnt'] >= 1) : ?>
                             <a href="index.php?retweet=<?php echo h($post['id']); ?>">
                                 <img class="retweet-image" src="images/retweet-solid-blue.svg">
+                            <?php elseif ($retweet_cnt['cnt'] < 1) : ?>
+                                <a href="index.php?retweet=<?php echo h($post['id']); ?>">
+                                    <img class="retweet-image" src="images/retweet-solid-gray.svg"> </a>
+                            <?php else : ?>
+                                <a href="index.php?retweet=<?php echo h($post['id']); ?>">
+                                    <img class="retweet-image" src="images/retweet-solid-blue.svg">
 
-                            <?php endif; ?>
-                            </a>
-                            <span><?php echo h($total_retweet['cnt']); ?></span>
+                                <?php endif; ?>
+                                </a>
+                                <?php if (((int)($post['retweet_post_id']) > 0)) : ?>
+                                    <span><?php echo h($retweeted_cnt['cnt']); ?></span>
+                                <?php else : ?>
+                                    <span><?php echo h($total_retweet['cnt']); ?></span>
+                                <?php endif; ?>
+
 
                     </span>
 
@@ -279,12 +303,9 @@ if (isset($_REQUEST['retweet'])) {
                                 <img class="favorite-image" src="images/heart-solid-red.svg">
                             <?php endif; ?>
                             </a>
+
                             <span><?php echo h($total_like['cnt']); ?></span>
                     </span>
-
-
-                    </span>
-
 
                     <a href="view.php?id=<?php echo h($post['id']); ?>"><?php echo h($post['created']); ?></a>
                     <?php
