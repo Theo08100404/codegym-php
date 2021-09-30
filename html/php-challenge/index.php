@@ -74,6 +74,7 @@ function makeLink($value)
 <?php
 //いいね済みかどうか確認
 if (isset($_REQUEST['like'])) {
+
     $pressd = $db->prepare('SELECT COUNT(*) AS cnt FROM favorites WHERE post_id=? AND member_id=?');
     $pressd->execute(array(
         $_REQUEST['like'],
@@ -102,18 +103,83 @@ if (isset($_REQUEST['like'])) {
         exit();
     }
 }
+if (isset($_REQUEST['rtlike'])) {
+    $isretweet_fav = $db->prepare('SELECT retweet_post_id AS retweet_post_id FROM posts WHERE id=?');
+    $isretweet_fav->execute(array(
+        $_REQUEST['rtlike']
+    ));
+    $Ismyretweet_fav = $isretweet_fav->fetch();
+
+    $myretweet_fav = $db->prepare('SELECT COUNT(*) AS cnt FROM favorites WHERE member_id=? AND post_id=?');
+    $myretweet_fav->execute(array(
+        $_SESSION['id'],
+        $Ismyretweet_fav['retweet_post_id']
+    ));
+    $Ismyretweet_cnt_fav = $myretweet_fav->fetch();
+
+    if ($Ismyretweet_cnt_fav['cnt'] < 1) {
+        $notretweet_fav = $db->prepare('INSERT INTO favorites SET member_id=? , post_id=? ,  created=NOW()');
+        $notretweet_fav->execute(array(
+            $_SESSION['id'],
+            $Ismyretweet_fav['retweet_post_id']
+        ));
+
+        header('Location: index.php');
+        exit();
+    } else {
+        $cansel_myret = $db->prepare('DELETE FROM favorites WHERE member_id=? AND post_id=? ');
+        $cansel_myret->execute(array(
+            $_SESSION['id'],
+            $Ismyretweet_fav['retweet_post_id']
+        ));
+        header('Location: index.php');
+        exit();
+    }
+}
 ?>
 <?php
-//リツイートされてるかどうか確認
+//リツイートされてるかどうか確認(リツイートの投稿に対して)
 if (isset($_REQUEST['retweet'])) {
-    $pushed = $db->prepare('SELECT COUNT(*) AS cnt FROM posts WHERE member_id=? AND retweet_post_id=? ');
-    $pushed->execute(array(
-        $_SESSION['id'],
+    $isretweet = $db->prepare('SELECT retweet_post_id AS retweet_post_id FROM posts WHERE id=?');
+    $isretweet->execute(array(
         $_REQUEST['retweet']
     ));
-    $retweet_cnt = $pushed->fetch();
+    $Ismyretweet = $isretweet->fetch();
 
+    if ($Ismyretweet['retweet_post_id'] > 0) {
+        $myretweet = $db->prepare('SELECT COUNT(*) AS cnt FROM posts WHERE member_id=? AND retweet_post_id=?');
+        $myretweet->execute(array(
+            $_SESSION['id'],
+            $Ismyretweet['retweet_post_id']
+        ));
+        $Ismyretweet_cnt = $myretweet->fetch();
 
+        if ($Ismyretweet_cnt['cnt'] < 1) {
+            $notretweet = $db->prepare('INSERT INTO posts SET member_id=? , retweet_post_id=?,created=NOW()');
+            $notretweet->execute(array(
+                $_SESSION['id'],
+                $Ismyretweet['retweet_post_id']
+            ));
+            $doretweet = $notretweet->fetch();
+            header('Location: index.php');
+            exit();
+        } else
+            $cansel_myret = $db->prepare('DELETE FROM posts WHERE member_id=? AND retweet_post_id=?');
+        $cansel_myret->execute(array(
+            $_SESSION['id'],
+            $Ismyretweet['retweet_post_id']
+
+        ));
+        header('Location: index.php');
+        exit();
+    } else {
+        $pushed = $db->prepare('SELECT COUNT(*) AS cnt FROM posts WHERE member_id=? AND retweet_post_id=? ');
+        $pushed->execute(array(
+            $_SESSION['id'],
+            $_REQUEST['retweet']
+        ));
+        $retweet_cnt = $pushed->fetch();
+    }
     //リツイートされてなければ追加
     if ($retweet_cnt['cnt'] < 1) {
         $push = $db->prepare('INSERT INTO posts SET member_id=? , retweet_post_id=? ,created=NOW()');
@@ -137,8 +203,6 @@ if (isset($_REQUEST['retweet'])) {
         exit();
     }
 }
-//元ポストの情報を取得
-
 ?>
 
 <!DOCTYPE html>
@@ -184,6 +248,14 @@ if (isset($_REQUEST['retweet'])) {
                 ));
                 $total_like = $like_number->fetch();
 
+                //リツイートのいいね数取得
+                $retweet_like = $db->prepare('SELECT COUNT(*) AS cnt FROM favorites WHERE post_id=?');
+                $retweet_like->execute(array(
+                    $post['retweet_post_id']
+                ));
+                $total_retweet_like = $retweet_like->fetch();
+
+
                 //それぞれの投稿に対していいねしてるかしてないか確認
                 $pressd = $db->prepare('SELECT COUNT(*) AS cnt FROM favorites WHERE post_id=? AND member_id=?');
                 $pressd->execute(array(
@@ -192,8 +264,16 @@ if (isset($_REQUEST['retweet'])) {
                 ));
                 $like_cnt = $pressd->fetch();
 
+                //リツイートの投稿に対していいねしているかしていないか確認
+                $mylike_rt = $db->prepare('SELECT COUNT(*) as cnt FROM favorites WHERE post_id=? AND member_id=?');
+                $mylike_rt->execute(array(
+                    $post['retweet_post_id'],
+                    $_SESSION['id']
+                ));
+                $Mylike_rt = $mylike_rt->fetch();
 
-                //リツイートの数確認
+
+                //普通の投稿のリツイートの数確認
                 $retweet_number = $db->prepare('SELECT COUNT(*) as cnt FROM posts WHERE retweet_post_id=? ');
                 $retweet_number->execute(array(
                     $post['id']
@@ -207,23 +287,22 @@ if (isset($_REQUEST['retweet'])) {
                     $_SESSION['id']
 
                 ));
-                $retweet_cnt = $pushed->fetch();
+                $isretweet = $pushed->fetch();
 
-                //リツイートと投稿のリツイート数取得
+                //リツイート投稿に対してリツイートしてるかしてないか確認
+                $retweetpush = $db->prepare('SELECT COUNT(*) AS cnt FROM posts WHERE retweet_post_id=? AND member_id=?');
+                $retweetpush->execute(array(
+                    $post['retweet_post_id'],
+                    $_SESSION['id']
+                ));
+                $Retweetpush = $retweetpush->fetch();
+
+                //リツイート投稿のリツイート数取得
                 $retweeted_number = $db->prepare('SELECT COUNT(*) AS cnt FROM posts WHERE retweet_post_id=? ');
                 $retweeted_number->execute(array(
                     $post['retweet_post_id']
                 ));
                 $retweeted_cnt = $retweeted_number->fetch();
-
-                //リツイート投稿に対して自分がリツイートしているか確認
-                $MY_pushed = $db->prepare('SELECT COUNT(*) AS cnt FROM posts WHERE retweet_post_id=? AND member_id=?');
-                $MY_pushed->execute(array(
-                    $post['id'],
-                    $_SESSION['id']
-
-                ));
-                $retweeted = $MY_pushed->fetch();
 
             ?>
                 <?php
@@ -251,7 +330,6 @@ if (isset($_REQUEST['retweet'])) {
                     $Tweeted_id['id']
                 ));
                 $Tweeted_pic = $tweeted_pic->fetch();
-
                 ?>
 
                 <div class="msg">
@@ -268,10 +346,10 @@ if (isset($_REQUEST['retweet'])) {
                     <!-- 課題：リツイートといいね機能の実装 -->
 
                     <span class="retweet">
-                        <?php if ((((int)($post['retweet_post_id']) > 0)) && $retweeted_cnt['cnt'] >= 1) : ?>
+                        <?php if (((int)($post['retweet_post_id']) > 0 && $Retweetpush['cnt'] >= 1)) : ?>
                             <a href="index.php?retweet=<?php echo h($post['id']); ?>">
                                 <img class="retweet-image" src="images/retweet-solid-blue.svg">
-                            <?php elseif ($retweet_cnt['cnt'] < 1) : ?>
+                            <?php elseif ($isretweet['cnt'] < 1) : ?>
                                 <a href="index.php?retweet=<?php echo h($post['id']); ?>">
                                     <img class="retweet-image" src="images/retweet-solid-gray.svg"> </a>
                             <?php else : ?>
@@ -285,24 +363,27 @@ if (isset($_REQUEST['retweet'])) {
                                 <?php else : ?>
                                     <span><?php echo h($total_retweet['cnt']); ?></span>
                                 <?php endif; ?>
-
-
                     </span>
-
                     <span class="favorite">
+                        <?php if (((int)($post['retweet_post_id']) > 0)) : ?>
+                            <a href="index.php?rtlike=<?php echo h($post['id']); ?>">
+                                <?php if ($Mylike_rt['cnt'] < 1) : ?>
+                                    <a href="index.php?rtlike=<?php echo h($post['id']); ?>">
+                                        <img class="favorite-image" src="images/heart-solid-gray.svg"></a>
+                                <?php else : ?>
+                                    <img class="favorite-image" src="images/heart-solid-red.svg"></a>
+                        <?php endif; ?>
+                    <?php elseif ($like_cnt['cnt'] < 1) : ?>
+                        <a href="index.php?like=<?php echo h($post['id']); ?>">
+                            <img class="favorite-image" src="images/heart-solid-gray.svg"></a>
+                    <?php else : ?>
+                        <a href="index.php?like=<?php echo h($post['id']); ?>">
+                            <img class="favorite-image" src="images/heart-solid-red.svg">
+                        <?php endif; ?>
+                        </a>
 
-                        <?php if ($like_cnt['cnt'] < 1) : ?>
-                            <a href="index.php?like=<?php echo h($post['id']); ?>">
-                                <img class="favorite-image" src="images/heart-solid-gray.svg"></a>
-                        <?php else : ?>
-                            <a href="index.php?like=<?php echo h($post['id']); ?>">
-                                <img class="favorite-image" src="images/heart-solid-red.svg">
-                            <?php endif; ?>
-                            </a>
-
-                            <span><?php echo h($total_like['cnt']); ?></span>
+                        <span><?php echo h($total_like['cnt'] + $total_retweet_like['cnt']); ?></span>
                     </span>
-
                     <a href="view.php?id=<?php echo h($post['id']); ?>"><?php echo h($post['created']); ?></a>
                     <?php
                     if ($post['reply_post_id'] > 0) :
